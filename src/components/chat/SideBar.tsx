@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import {Upload, X, BarChart2, FileUp} from 'lucide-react';
+import { Upload, X, BarChart2, FileUp } from 'lucide-react';
 import Link from 'next/link';
 import { FILE_TYPES } from '@/constants/fileVariety';
 import { getWebsiteInfo, WebsiteInfo } from '@/helpers/getWebsiteInfo';
@@ -30,9 +30,6 @@ export const Section: React.FC<SectionProps> = ({ title, children }) => (
     {children}
   </div>
 );
-
-
-// ## Main Sidebar Component
 
 const Sidebar: React.FC = () => {
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
@@ -84,6 +81,18 @@ const Sidebar: React.FC = () => {
     runAnalysis();
   };
 
+  function getActiveApiKey() {
+  const keys = ['openai', 'claude', 'gemini'];
+
+  for (const k of keys) {
+    const value = localStorage.getItem(k);
+    if (value) {
+      return { provider: k.replace("_KEY", "").toLowerCase(), apiKey: value };
+    }
+  }
+  return null;
+}
+
   const handleFileSelection = (files: File[]) => {
     if (isUploading) return;
 
@@ -94,23 +103,52 @@ const Sidebar: React.FC = () => {
     setUploadAnalysisStep(0);
 
     const runUploadAnalysis = async () => {
-      for (let i = 0; i < UPLOAD_ANALYSIS_STEPS.length; i++) {
-        setUploadAnalysisStep(i);
-        await new Promise(resolve => setTimeout(resolve, 600));
+      const activeApiKey = getActiveApiKey();
+      try {
+        const formData = new FormData();
+
+        if(activeApiKey){
+          formData.append('apiKey',activeApiKey.apiKey);
+        }
+
+        files.forEach(file => {
+          formData.append('file', file);
+        });
+        for (let i = 0; i < 2; i++) {
+          setUploadAnalysisStep(i);
+          await new Promise(resolve => setTimeout(resolve, 400));
+        }
+        const response = await fetch('/api/ingest', {
+          method: 'POST',
+          body: formData,
+        });
+        console.log(response)
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'File upload failed!');
+        }
+        for (let i = 2; i < UPLOAD_ANALYSIS_STEPS.length; i++) {
+          setUploadAnalysisStep(i);
+          await new Promise(resolve => setTimeout(resolve, 600));
+        }
+        const newDocuments: DocumentInfo[] = files.map(file => ({
+          id: Date.now() + Math.random(),
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        }));
+        setAnalyzedDocuments(prev => [...newDocuments, ...prev]);
+
+      } catch (error) {
+        console.log(error)
+        setUploadAnalysisStep(-1);
+      } finally {
+        setTimeout(() => {
+          setIsUploading(false);
+          setShowUploadAnalysisPopup(false);
+        }, 1500);
       }
-
-      const newDocuments: DocumentInfo[] = files.map(file => ({
-        id: Date.now() + Math.random(),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-      }));
-      setAnalyzedDocuments(prev => [...newDocuments, ...prev]);
-
-      setTimeout(() => {
-        setIsUploading(false);
-        setShowUploadAnalysisPopup(false);
-      }, 1500);
     };
 
     runUploadAnalysis();
@@ -213,11 +251,16 @@ const Sidebar: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {FILE_TYPES.map((fileType, index) => (
                 <label key={index} className="relative group cursor-pointer">
-                  <input type="file" accept={fileType.accept} className="hidden" multiple onChange={handleFileChange} />
-                  <div className="flex flex-col items-center justify-center p-4 border border-gray-700/50 rounded-xl hover:border-red-500/50 hover:bg-red-500/5 transition-all duration-300 min-h-[100px] bg-gray-800/30 group-hover:scale-105 transform">
+                  <input disabled={!fileType.isAvailable} type="file" accept={fileType.accept} className="hidden" multiple onChange={handleFileChange} />
+                  <div className={`flex flex-col items-center justify-center p-4 border ${fileType.isAvailable?'hover:border-red-500/50 group-hover:scale-105 transform hover:bg-red-500/5 bg-gray-800/30':'bg-black/20'} border-gray-700/50 rounded-xl  transition-all duration-300 min-h-[100px]`}>
                     <fileType.icon className={`w-8 h-8 ${fileType.color} group-hover:scale-110 transition-transform duration-200 mb-2`} />
                     <span className="text-xs text-center text-gray-300 group-hover:text-white transition-colors font-medium">{fileType.label}</span>
                   </div>
+                  {!fileType.isAvailable && (
+                    <div className=" inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center rounded-xl">
+                      <span className="text-red-500 text-xs font-semibold">Not availabel</span  >
+                    </div>
+                    )}
                 </label>
               ))}
             </div>

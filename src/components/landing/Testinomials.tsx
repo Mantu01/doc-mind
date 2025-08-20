@@ -30,7 +30,7 @@ export default function Testimonials() {
                 <div className="w-2 h-2 bg-red-600 rounded-full mr-2"></div>
                 <div className="text-red-600 text-sm font-semibold">{testimonial.category}</div>
               </div>
-              <p className="text-gray-300 mb-6 italic">"{testimonial.quote}"</p>
+              <p className="text-gray-300 mb-6 italic">&ldquo;{testimonial.quote}&ldquo;</p>
               <div className="text-sm text-gray-400">{testimonial.author}</div>
             </div>
           ))}

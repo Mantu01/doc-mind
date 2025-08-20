@@ -35,13 +35,13 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-semibold mb-4">Connect</h4>
             <div className="flex space-x-4">
-              <a href="#" className="text-gray-400 hover:text-red-600 transition-colors">
+              <a href="https://github.com/Mantu01/doc-mind" target="_blank" className="text-gray-400 hover:text-red-600 transition-colors">
                 <Github className="w-6 h-6" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-red-600 transition-colors">
+              <a href="https://x.com/Mantu_kumar91" target="_blank" className="text-gray-400 hover:text-red-600 transition-colors">
                 <Twitter className="w-6 h-6" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-red-600 transition-colors">
+              <a href="https://www.linkedin.com/in/mantu-kumar-2b5912238/" target="_blank" className="text-gray-400 hover:text-red-600 transition-colors">
                 <Linkedin className="w-6 h-6" />
               </a>
             </div>

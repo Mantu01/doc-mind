@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { DocumentInfo } from "./SideBar";
 import { WebsiteInfo } from "@/helpers/getWebsiteInfo";
-import { Archive, CheckCircle, Database, ExternalLink, FileSpreadsheet, FileText, Image, Music, Presentation, Trash2, Video, X } from "lucide-react";
+import { Archive, CheckCircle, Database, ExternalLink, FileSpreadsheet, FileText, Image as Img, Music, Presentation, Trash2, Video, X } from "lucide-react";
 
 interface AnalyzedDataModalProps {
   isOpen: boolean;
@@ -16,7 +16,7 @@ const getFileIcon = (fileName: string) => {
   const extension = fileName.split('.').pop()?.toLowerCase();
   switch (extension) {
     case 'pdf': return <FileText className="w-4 h-4 text-red-400" />;
-    case 'png': case 'jpg': case 'jpeg': case 'gif': return <Image className="w-4 h-4 text-purple-400" />;
+    case 'png': case 'jpg': case 'jpeg': case 'gif': return <Img className="w-4 h-4 text-purple-400" />;
     case 'mp4': case 'mov': case 'avi': return <Video className="w-4 h-4 text-blue-400" />;
     case 'csv': return <Database className="w-4 h-4 text-green-400" />;
     case 'xlsx': case 'xls': return <FileSpreadsheet className="w-4 h-4 text-emerald-400" />;
@@ -66,9 +66,6 @@ const AnalyzedDataModal: React.FC<AnalyzedDataModalProps> = ({ isOpen, onClose, 
                           <a href={website.url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-all duration-200"><ExternalLink className="w-3 h-3" /></a>
                         </div>
                         <p className="text-xs text-gray-400 truncate">{website.domain}</p>
-                        <div className="flex items-center space-x-3 mt-1">
-                          <span className="text-xs text-gray-500">{website.pages} pages</span><span className="text-xs text-gray-500">•</span><span className="text-xs text-gray-500">{website.size}</span>
-                        </div>
                       </div>
                     </div>
                     <button onClick={() => onDeleteWebsite(website.id)} className="flex-shrink-0 p-1 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200"><Trash2 className="w-4 h-4" /></button>

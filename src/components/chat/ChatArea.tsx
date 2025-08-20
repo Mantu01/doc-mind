@@ -10,27 +10,47 @@ interface Message {
 }
 
 const ChatArea: React.FC = () => {
-   const [userProvidePrompt, setUserProvidePrompt] = useState('');
-
-  useEffect(() => {
-    const stored = localStorage.getItem('system-prompt') || 'Your are a helpful AI assitent';
-    setUserProvidePrompt(stored);
-  }, []);
-
-  const [chatMessages, setChatMessages] = useState<Message[]>([
-    {
-      role:'system',
-      content: userProvidePrompt
-    },
-    {
-      role: 'assistant',
-      content: 'Welcome to **DocMind**! ✨\n\nI\'m your AI assistant, ready to help you synthesize information, analyze documents, and refine your ideas with precision.\n\n*How can I assist you today?*'
-    }
-  ])
+  const [userProvidePrompt, setUserProvidePrompt] = useState('');
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const storedPrompt = localStorage.getItem('system-prompt') || 'Your are a helpful AI assitent';
+    setUserProvidePrompt(storedPrompt);
+    const storedMessages = localStorage.getItem('chat-history');
+
+    if (storedMessages) {
+      let messages: Message[] = JSON.parse(storedMessages);
+      // Always ensure the first message is the current system prompt
+      if (!messages.length || messages[0].role !== 'system' || messages[0].content !== storedPrompt) {
+        messages = [
+          { role: 'system', content: storedPrompt },
+          ...messages.filter(m => m.role !== 'system')
+        ];
+      }
+      setChatMessages(messages);
+    } else {
+      setChatMessages([
+        {
+          role: 'system',
+          content: storedPrompt
+        },
+        {
+          role: 'assistant',
+          content: 'Welcome to **DocMind**! ✨\n\nI\'m your AI assistant, ready to help you synthesize information, analyze documents, and refine your ideas with precision.\n\n*How can I assist you today?*'
+        }
+      ]);
+    }
+  }, []); 
+
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      localStorage.setItem('chat-history', JSON.stringify(chatMessages));
+    }
+  }, [chatMessages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -41,81 +61,88 @@ const ChatArea: React.FC = () => {
   }, [chatMessages])
 
   const handleSendMessage = async () => {
-  if (!currentMessage.trim()) return;
+    if (!currentMessage.trim()) return;
 
-  // push user message immediately
-  const newMessage: Message = {
-    role: 'user',
-    content: currentMessage
-  };
-  const updatedMessages = [...chatMessages, newMessage];
-  setChatMessages(updatedMessages);
-  setCurrentMessage('');
-  setIsTyping(true);
+    const apiKey = localStorage.getItem('openai');
+    if (!apiKey) {
+      alert('Please set your OpenAI API key in the settings.');
+      setIsTyping(false);
+      return;
+    }
+    
+    const newMessage: Message = {
+      role: 'user',
+      content: currentMessage
+    };
+    
+    // Always inject the latest system prompt as the first message
+    const systemPrompt = localStorage.getItem('system-prompt') || userProvidePrompt || 'Your are a helpful AI assitent';
+    const messagesToSend = [
+      { role: 'system', content: systemPrompt },
+      ...chatMessages.filter(m => m.role !== 'system'),
+      newMessage
+    ];
 
-  const apiKey = localStorage.getItem('openai');
+    setChatMessages(prev => [...prev, newMessage]);
+    setCurrentMessage('');
+    setIsTyping(true);
 
-  try {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        apiKey,
-        messages: updatedMessages 
-      }),
-    });
 
-    if (!res.body) throw new Error('Response body is null');
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey,
+          messages: messagesToSend
+        }),
+      });
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
+      if (!res.body) throw new Error('Response body is null');
 
-    let assistantMessage = ''; // buffer for assistant response
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantMessage = ''; 
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n\n');
 
-      // SSE sends multiple "data:" lines per chunk, split them
-      const lines = chunk.split('\n\n');
-      for (const line of lines) {
-        if (line.startsWith('data:')) {
-          const data = JSON.parse(line.replace(/^data:\s*/, ''));
-          if (data.content) {
-            assistantMessage += data.content;
-
-            // Update UI live (replace last assistant message)
-            setChatMessages(prev => {
-              const last = prev[prev.length - 1];
-              if (last?.role === 'assistant') {
-                return [
-                  ...prev.slice(0, -1),
-                  { ...last, content: assistantMessage }
-                ];
-              } else {
-                return [
-                  ...prev,
-                  {
-                    role: 'assistant',
-                    content: assistantMessage
-                  }
-                ];
-              }
-            });
+        for (const line of lines) {
+          if (line.startsWith('data:')) {
+            const data = JSON.parse(line.replace(/^data:\s*/, ''));
+            if (data.content) {
+              assistantMessage += data.content;
+              setChatMessages(prev => {
+                const last = prev[prev.length - 1];
+                if (last?.role === 'assistant') {
+                  return [
+                    ...prev.slice(0, -1),
+                    { ...last, content: assistantMessage }
+                  ];
+                } else {
+                  return [
+                    ...prev,
+                    {
+                      role: 'assistant',
+                      content: assistantMessage
+                    }
+                  ];
+                }
+              });
+            }
           }
         }
       }
+      setIsTyping(false);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setIsTyping(false);
     }
-
-    setIsTyping(false);
-  } catch (error) {
-    console.error('Error sending message:', error);
-    setIsTyping(false);
-  }
-};
-
+  };
 
   return (
     <div className="w-2/3 flex flex-col bg-black min-h-screen scale-90">
@@ -159,7 +186,7 @@ const ChatArea: React.FC = () => {
         {chatMessages.map((msg, index) => (
           <div
             key={index}
-            className={`flex items-start space-x-6 animate-fade-in ${index===0?'hidden':''} ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}
+            className={`flex items-start space-x-6 animate-fade-in ${msg.role === 'system' ? 'hidden' : ''} ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}
             style={{ animationDelay: `${index * 100}ms` }}
           >
             <div className={`relative flex-shrink-0 group ${msg.role === 'user' ? 'ml-6' : 'mr-6'}`}>
@@ -220,30 +247,21 @@ const ChatArea: React.FC = () => {
           </div>
         ))}
 
+        {/* MODIFIED: The "isTyping" indicator is now just the animated avatar */}
         {isTyping && (
           <div className="flex items-start space-x-6 animate-fade-in">
             <div className="relative flex-shrink-0 group mr-6">
               <div className="absolute inset-0 rounded-full blur-md opacity-50 bg-gradient-to-br from-red-500 to-red-600"></div>
               <div className="relative w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-red-500 to-red-600 shadow-2xl shadow-red-500/40">
-                <Bot className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            
-            <div className="flex-1 max-w-[82%]">
-              <div className="relative group">
-                <div className="absolute inset-0 rounded-3xl blur-sm opacity-30 bg-gradient-to-br from-red-500/20 to-red-600/20"></div>
-                <div className="relative backdrop-blur-xl rounded-3xl bg-gradient-to-br from-gray-900/90 via-black/90 to-gray-900/90 border border-red-500/20 p-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-red-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce delay-100"></div>
-                      <div className="w-2 h-2 bg-red-600 rounded-full animate-bounce delay-200"></div>
-                    </div>
-                    <span className="text-gray-400 text-sm font-medium">AI is analyzing...</span>
-                  </div>
+                {/* Three animated dots replace the Bot icon during typing */}
+                <div className="flex space-x-1">
+                  <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce"></div>
+                  <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                 </div>
               </div>
             </div>
+            {/* The message bubble for "AI is analyzing..." has been removed */}
           </div>
         )}
         
@@ -302,36 +320,14 @@ const ChatArea: React.FC = () => {
       
       <style jsx>{`
         @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-        
-        .animate-fade-in {
-          animation: fade-in 0.6s ease-out forwards;
-        }
-        
-        .scrollbar-thin::-webkit-scrollbar {
-          width: 6px;
-        }
-        
-        .scrollbar-track-transparent::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        
-        .scrollbar-thumb-gray-800::-webkit-scrollbar-thumb {
-          background: rgba(31, 41, 55, 0.8);
-          border-radius: 3px;
-        }
-        
-        .scrollbar-thumb-gray-800:hover::-webkit-scrollbar-thumb {
-          background: rgba(55, 65, 81, 0.9);
-        }
+        .animate-fade-in { animation: fade-in 0.6s ease-out forwards; }
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+        .scrollbar-track-transparent::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-thumb-gray-800::-webkit-scrollbar-thumb { background: rgba(31, 41, 55, 0.8); border-radius: 3px; }
+        .scrollbar-thumb-gray-800:hover::-webkit-scrollbar-thumb { background: rgba(55, 65, 81, 0.9); }
       `}</style>
     </div>
   )

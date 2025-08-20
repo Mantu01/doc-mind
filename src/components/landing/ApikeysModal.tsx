@@ -14,8 +14,6 @@ type KeyOption = 'openai' | 'claude' | 'gemini' ;
 
 const keyOptions: Array<{ value: KeyOption; label: string; description: string }> = [
   { value: 'openai', label: 'OpenAI API Key', description: 'GPT models and completions' },
-  { value: 'claude', label: 'Anthropic API Key', description: 'Claude models' },
-  { value: 'gemini', label: 'Google AI API Key', description: 'Gemini models' },
 ];
 
 export default function ApiKeysModal({ isOpen, onClose }: ApiKeysModalProps) {

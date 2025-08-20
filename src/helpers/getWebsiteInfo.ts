@@ -3,7 +3,6 @@ export interface WebsiteInfo {
   url: string;
   title: string;
   domain: string;
-  pages: number;
   size: string;
 }
 
@@ -14,10 +13,9 @@ export const getWebsiteInfo = (url: string): Omit<WebsiteInfo, 'id' | 'url'> => 
     return {
       title: title.charAt(0).toUpperCase() + title.slice(1),
       domain: domain,
-      pages: Math.floor(Math.random() * 50) + 5,
       size: (Math.random() * 10 + 1).toFixed(1) + ' MB'
     };
   } catch {
-    return { title: 'Invalid URL', domain: url, pages: 0, size: '0 MB' };
+    return { title: 'Invalid URL', domain: url, size: '0 MB' };
   }
 };

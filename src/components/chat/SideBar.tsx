@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Upload, X, BarChart2, FileUp } from 'lucide-react';
+import { Upload, X, BarChart2, FileUp, Check } from 'lucide-react';
 import Link from 'next/link';
 import { FILE_TYPES } from '@/constants/fileVariety';
 import { getWebsiteInfo, WebsiteInfo } from '@/helpers/getWebsiteInfo';
@@ -9,6 +9,7 @@ import { UPLOAD_ANALYSIS_STEPS, WEBSITE_ANALYSIS_STEPS } from '@/constants/proce
 import AnalyzedDataModal from './AnalyzedDataModal';
 import WebsiteAnalysis from './WebsiteAnalysis';
 import AnalysisProgressModal from './AnalysisProgressModal';
+import axios from 'axios';
 
 export interface DocumentInfo {
   id: number;
@@ -45,12 +46,29 @@ const Sidebar: React.FC = () => {
 
   // General state
   const [systemPrompt, setSystemPrompt] = useState<string>('');
+  const [isPromptSaved, setIsPromptSaved] = useState<boolean>(false);
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [showDataPopup, setShowDataPopup] = useState<boolean>(false);
   const [analyzedWebsites, setAnalyzedWebsites] = useState<WebsiteInfo[]>([]);
   const [analyzedDocuments, setAnalyzedDocuments] = useState<DocumentInfo[]>([]);
 
-  const handleAnalyzeWebsite = () => {
+  // Load system prompt from localStorage on initial render
+  useEffect(() => {
+    const savedPrompt = localStorage.getItem('system-prompt');
+    if (savedPrompt) {
+      setSystemPrompt(savedPrompt);
+    }
+  }, []);
+
+  const handleSaveSystemPrompt = () => {
+    localStorage.setItem('system-prompt', systemPrompt);  
+    setIsPromptSaved(true);
+    setTimeout(() => {
+      setIsPromptSaved(false);
+    }, 2000); // Reset the 'Saved!' message after 2 seconds
+  };
+
+  const handleAnalyzeWebsite = async() => {
     if (!websiteUrl.trim() || analyzedWebsites.some(site => site.url === websiteUrl)) {
       if (analyzedWebsites.some(site => site.url === websiteUrl)) {
         alert('This website has already been analyzed!');
@@ -61,37 +79,50 @@ const Sidebar: React.FC = () => {
     setIsAnalyzingWebsite(true);
     setShowWebsiteAnalysisPopup(true);
     setWebsiteAnalysisStep(0);
-
-    const runAnalysis = async () => {
-      for (let i = 0; i < WEBSITE_ANALYSIS_STEPS.length; i++) {
-        setWebsiteAnalysisStep(i);
-        await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      const activeApiKey = getActiveApiKey();
+      if (!activeApiKey) {
+        alert('No API key found! Please set an API key in the settings.');
+        setIsAnalyzingWebsite(false);
+        return;
       }
-
+      for (let i = 0; i < 2; i++) {
+        setWebsiteAnalysisStep(i);
+        await new Promise(resolve => setTimeout(resolve, 400));
+      }
+      await axios.post('/api/scrape', {
+        url: websiteUrl,
+        apiKey: activeApiKey.apiKey,
+      });
       const websiteInfo = getWebsiteInfo(websiteUrl);
       setAnalyzedWebsites(prev => [{ id: Date.now(), url: websiteUrl, ...websiteInfo }, ...prev]);
-
+      for (let i = 2; i < WEBSITE_ANALYSIS_STEPS.length; i++) {
+        setWebsiteAnalysisStep(i);
+        await new Promise(resolve => setTimeout(resolve, 600));
+      }
+      setWebsiteUrl('');
+    } catch (error) {
+      console.error('Error analyzing website:', error);
+      setWebsiteAnalysisStep(-1);
+    }finally {
       setTimeout(() => {
         setIsAnalyzingWebsite(false);
         setShowWebsiteAnalysisPopup(false);
-        setWebsiteUrl('');
       }, 1500);
-    };
-
-    runAnalysis();
+    }
   };
 
   function getActiveApiKey() {
-  const keys = ['openai', 'claude', 'gemini'];
+    const keys = ['openai'];
 
-  for (const k of keys) {
-    const value = localStorage.getItem(k);
-    if (value) {
-      return { provider: k.replace("_KEY", "").toLowerCase(), apiKey: value };
+    for (const k of keys) {
+      const value = localStorage.getItem(k);
+      if (value) {
+        return { provider: k.replace("_KEY", "").toLowerCase(), apiKey: value };
+      }
     }
+    return null;
   }
-  return null;
-}
 
   const handleFileSelection = (files: File[]) => {
     if (isUploading) return;
@@ -122,7 +153,6 @@ const Sidebar: React.FC = () => {
           method: 'POST',
           body: formData,
         });
-        console.log(response)
 
         if (!response.ok) {
           const errorData = await response.json();
@@ -197,7 +227,27 @@ const Sidebar: React.FC = () => {
             </div>
           </div>
           <Section title="System Configuration">
-            <label className="block text-sm font-medium text-gray-300 mb-3">System Prompt & AI Behavior</label>
+            <div className="flex justify-between items-center mb-3">
+                <label className="block text-sm font-medium text-gray-300">System Prompt & AI Behavior</label>
+                <button
+                    onClick={handleSaveSystemPrompt}
+                    disabled={isPromptSaved}
+                    className={`text-sm font-semibold py-1 px-3 cursor-pointer rounded-md transition-all duration-200 flex items-center justify-center ${
+                    isPromptSaved
+                        ? 'bg-green-500/20 text-green-400 cursor-default'
+                        : 'bg-red-700 text-white'
+                    }`}
+                >
+                    {isPromptSaved ? (
+                        <>
+                            <Check className="w-4 h-4 mr-1.5" />
+                            Saved!
+                        </>
+                    ) : (
+                        'Save'
+                    )}
+                </button>
+            </div>
             <div className="relative group">
               <textarea
                 value={systemPrompt}
@@ -252,13 +302,13 @@ const Sidebar: React.FC = () => {
               {FILE_TYPES.map((fileType, index) => (
                 <label key={index} className="relative group cursor-pointer">
                   <input disabled={!fileType.isAvailable} type="file" accept={fileType.accept} className="hidden" multiple onChange={handleFileChange} />
-                  <div className={`flex flex-col items-center justify-center p-4 border ${fileType.isAvailable?'hover:border-red-500/50 group-hover:scale-105 transform hover:bg-red-500/5 bg-gray-800/30':'bg-black/20'} border-gray-700/50 rounded-xl  transition-all duration-300 min-h-[100px]`}>
+                  <div className={`flex flex-col items-center justify-center p-4 border ${fileType.isAvailable?'hover:border-red-500/50 group-hover:scale-105 transform hover:bg-red-500/5 bg-gray-800/30':'bg-black/20'} border-gray-700/50 rounded-xl transition-all duration-300 min-h-[100px]`}>
                     <fileType.icon className={`w-8 h-8 ${fileType.color} group-hover:scale-110 transition-transform duration-200 mb-2`} />
                     <span className="text-xs text-center text-gray-300 group-hover:text-white transition-colors font-medium">{fileType.label}</span>
                   </div>
                   {!fileType.isAvailable && (
                     <div className=" inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center rounded-xl">
-                      <span className="text-red-500 text-xs font-semibold">Not availabel</span  >
+                      <span className="text-red-500 text-xs font-semibold">Not available</span>
                     </div>
                     )}
                 </label>

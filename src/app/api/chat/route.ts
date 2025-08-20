@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
     `;
 
     const wholePrompt=`
-      ${SYSTEM_PROMPT}
-
-      ${system.content}
+    ${system.content}
+    
+    ${SYSTEM_PROMPT}
     `;
 
     messages[0]={
@@ -50,8 +50,6 @@ export async function POST(req: NextRequest) {
     const client=new OpenAI({
       apiKey
     });
-
-    console.log(messages)
     const stream = await client.chat.completions.create({
       model: 'gpt-4.1',
       messages:messages,
@@ -78,8 +76,8 @@ export async function POST(req: NextRequest) {
         'Connection':'keep-alive'
       }
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err }, { status: 500 });
   }
 }

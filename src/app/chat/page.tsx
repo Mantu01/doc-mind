@@ -1,7 +1,5 @@
-'use client'
 import ChatArea from '@/components/chat/ChatArea'
 import Sidebar from '@/components/chat/SideBar'
-import React, { useState } from 'react'
 
 
 function Page() {

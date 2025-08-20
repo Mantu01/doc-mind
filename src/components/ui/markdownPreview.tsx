@@ -6,7 +6,9 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
+//@ts-expect-error: unknown
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+//@ts-expect-error: unknown
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Clipboard, ClipboardCheck, Expand, Shrink, Code2 } from "lucide-react";
 import "katex/dist/katex.min.css";
@@ -58,13 +60,14 @@ const MarkdownPreview: FC<MarkdownPreviewProps> = ({
   }, []);
 
   const remarkPlugins = useMemo(() => {
-    const plugins: any[] = [remarkGfm];
+    const plugins= [remarkGfm];
+    //@ts-expect-error: unknown
     if (enableMath) plugins.push(remarkMath);
     return plugins;
   }, [enableMath]);
 
   const rehypePlugins = useMemo(() => {
-    const plugins: any[] = [];
+    const plugins = [];
     if (enableMath) plugins.push(rehypeKatex);
     if (enableRawHtml) plugins.push(rehypeRaw);
     return plugins;
